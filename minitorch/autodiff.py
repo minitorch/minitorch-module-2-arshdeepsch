@@ -22,7 +22,11 @@ def central_difference(f: Any, *vals: Any, arg: int = 0, epsilon: float = 1e-6) 
     Returns:
         An approximation of $f'_i(x_0, \ldots, x_{n-1})$
     """
-    raise NotImplementedError("Need to include this file from past assignment.")
+    vals_p = list(vals)
+    vals_n = list(vals)
+    vals_p[arg] = vals[arg] + (epsilon / 2.0)
+    vals_n[arg] = vals[arg] - (epsilon / 2.0)
+    return (f(*vals_p) - f(*vals_n)) / epsilon
 
 
 variable_count = 1
@@ -60,7 +64,21 @@ def topological_sort(variable: Variable) -> Iterable[Variable]:
     Returns:
         Non-constant Variables in topological order starting from the right.
     """
-    raise NotImplementedError("Need to include this file from past assignment.")
+    sorted = []
+    visited = set()
+
+    def visit(node: Variable) -> None:
+        nonlocal visited, sorted
+        if node.unique_id in visited or node.is_constant():
+            return
+        for parent in node.parents:
+            visit(parent)
+        visited.add(node.unique_id)
+        sorted.append(node)
+
+    visit(variable)
+    sorted.reverse()
+    return sorted
 
 
 def backpropagate(variable: Variable, deriv: Any) -> None:
@@ -74,7 +92,23 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
 
     No return. Should write to its results to the derivative values of each leaf through `accumulate_derivative`.
     """
-    raise NotImplementedError("Need to include this file from past assignment.")
+    sorted = topological_sort(variable)
+
+    import collections
+
+    hmap = collections.defaultdict(lambda: 0)
+    hmap[variable.unique_id] = deriv
+
+    for n in sorted:
+        if n.is_constant():
+            continue
+        d = hmap[n.unique_id]
+        if n.is_leaf():
+            n.accumulate_derivative(d)
+        else:
+            pairs = n.chain_rule(d)
+            for p, der in pairs:
+                hmap[p.unique_id] += der
 
 
 @dataclass

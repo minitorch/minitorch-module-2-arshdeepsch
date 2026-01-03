@@ -3,7 +3,12 @@ from __future__ import annotations
 import random
 from typing import Iterable, Optional, Sequence, Tuple, Union
 
-import numba
+try:  # pragma: no cover
+    import numba  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    # `numba` is only required for CUDA support; CPU-only workflows shouldn't
+    # fail to import the library if it's not installed.
+    numba = None  # type: ignore
 import numpy as np
 import numpy.typing as npt
 from numpy import array, float64
@@ -16,6 +21,7 @@ MAX_DIMS = 32
 
 class IndexingError(RuntimeError):
     "Exception raised for indexing errors."
+
     pass
 
 
@@ -42,9 +48,7 @@ def index_to_position(index: Index, strides: Strides) -> int:
     Returns:
         Position in storage
     """
-
-    # TODO: Implement for Task 2.1.
-    raise NotImplementedError("Need to implement for Task 2.1")
+    return np.dot(index, strides)
 
 
 def to_index(ordinal: int, shape: Shape, out_index: OutIndex) -> None:
@@ -60,8 +64,9 @@ def to_index(ordinal: int, shape: Shape, out_index: OutIndex) -> None:
         out_index : return index corresponding to position.
 
     """
-    # TODO: Implement for Task 2.1.
-    raise NotImplementedError("Need to implement for Task 2.1")
+    for i in range(len(shape) - 1, -1, -1):
+        out_index[i] = ordinal % shape[i]
+        ordinal //= shape[i]
 
 
 def broadcast_index(
@@ -83,8 +88,25 @@ def broadcast_index(
     Returns:
         None
     """
-    # TODO: Implement for Task 2.2.
-    raise NotImplementedError("Need to implement for Task 2.2")
+    nb, ns = len(big_shape), len(shape)
+    if ns > nb:
+        raise IndexingError(
+            f"Cannot broadcast: {tuple(shape)} has more dims than {tuple(big_shape)}"
+        )
+    if len(big_index) != nb:
+        raise IndexingError(f"big_index length {len(big_index)} != big_shape dims {nb}")
+    if len(out_index) != ns:
+        raise IndexingError(f"out_index length {len(out_index)} != shape dims {ns}")
+
+    for i in range(1, ns + 1):
+        b_dim = big_shape[-i]
+        s_dim = shape[-i]
+        if s_dim == 1:
+            out_index[-i] = 0
+        elif s_dim == b_dim:
+            out_index[-i] = big_index[-i]
+        else:
+            raise IndexingError(f"Cannot broadcast dimension {s_dim} with {b_dim}")
 
 
 def shape_broadcast(shape1: UserShape, shape2: UserShape) -> UserShape:
@@ -101,8 +123,16 @@ def shape_broadcast(shape1: UserShape, shape2: UserShape) -> UserShape:
     Raises:
         IndexingError : if cannot broadcast
     """
-    # TODO: Implement for Task 2.2.
-    raise NotImplementedError("Need to implement for Task 2.2")
+    a_t, b_t = tuple(shape1), tuple(shape2)
+    out = []
+
+    import itertools
+
+    for x, y in itertools.zip_longest(reversed(a_t), reversed(b_t), fillvalue=1):
+        if (x != 1 and y != 1) and x != y:
+            raise IndexingError(f"Cannot broadcast shapes {a_t} and {b_t}")
+        out.append(max(x, y))
+    return tuple(reversed(out))
 
 
 def strides_from_shape(shape: UserShape) -> UserStrides:
@@ -149,6 +179,8 @@ class TensorData:
         assert len(self._storage) == self.size
 
     def to_cuda_(self) -> None:  # pragma: no cover
+        if numba is None:
+            raise RuntimeError("CUDA support requires `numba` to be installed.")
         if not numba.cuda.is_cuda_array(self._storage):
             self._storage = numba.cuda.to_device(self._storage)
 
@@ -221,9 +253,9 @@ class TensorData:
         assert list(sorted(order)) == list(
             range(len(self.shape))
         ), f"Must give a position to each dimension. Shape: {self.shape} Order: {order}"
-
-        # TODO: Implement for Task 2.1.
-        raise NotImplementedError("Need to implement for Task 2.1")
+        nShape = tuple(self.shape[i] for i in order)
+        nStrides = tuple(self.strides[i] for i in order)
+        return TensorData(self._storage, nShape, nStrides)
 
     def to_string(self) -> str:
         s = ""
