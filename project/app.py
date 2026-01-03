@@ -1,6 +1,16 @@
 from argparse import ArgumentParser
 
+import os
+import sys
+
 import streamlit as st
+
+# Ensure repo root is on sys.path when running via `streamlit run project/app.py`
+# (Streamlit executes scripts with `project/` on sys.path by default.)
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
 from interface.streamlit_utils import get_img_tag
 from interface.train import render_train_interface
 from math_interface import render_math_sandbox

@@ -33,14 +33,45 @@ f.close()
 source = sys.argv[1]
 dest = sys.argv[2]
 
+
+def resolve_root(arg):
+    # Try the common candidate: relative to grandparent_path
+    candidate = os.path.normpath(os.path.join(grandparent_path, arg))
+    if os.path.exists(candidate):
+        return candidate
+    # Try basename placed under grandparent_path
+    candidate2 = os.path.normpath(os.path.join(grandparent_path, os.path.basename(arg)))
+    if os.path.exists(candidate2):
+        return candidate2
+    # Try absolute path provided by user
+    candidate3 = os.path.abspath(arg)
+    if os.path.exists(candidate3):
+        return candidate3
+    # Fallback to the first candidate (may not exist)
+    return candidate
+
+
+source_root = resolve_root(source)
+dest_root = resolve_root(dest)
+
+print(f"Resolved source root: {source_root}")
+print(f"Resolved dest root: {dest_root}")
+
 # copy the files from source to destination
-try:
-    for file in files_to_move:
-        print(f"Moving file : {file}")
-        shutil.copy(
-            os.path.join(grandparent_path, source, file),
-            os.path.join(grandparent_path, dest, file),
-        )
-    print(f"Finished moving {len(files_to_move)} files")
-except Exception:
-    print("Something went wrong! please check if the source and destination folders are present in same folder")
+moved_count = 0
+for file in files_to_move:
+    print(f"Moving file : {file}")
+    src = os.path.normpath(os.path.join(source_root, file))
+    dst = os.path.normpath(os.path.join(dest_root, file))
+    try:
+        if not os.path.exists(src):
+            print(f"Source not found: {src} — skipping")
+            continue
+        dst_dir = os.path.dirname(dst)
+        if not os.path.exists(dst_dir):
+            os.makedirs(dst_dir, exist_ok=True)
+        shutil.copy(src, dst)
+        moved_count += 1
+    except Exception as e:
+        print(f"Failed to copy {file}: {e}")
+print(f"Finished moving {moved_count} files")
